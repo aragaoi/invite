@@ -54,3 +54,8 @@ export class ContactMatcher {
     return 1 - distance.distance / maxLength;
   }
 }
+
+// CommonJS compatibility
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { ContactMatcher };
+}

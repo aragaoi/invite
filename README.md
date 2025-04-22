@@ -28,7 +28,7 @@ npm install
    - `data/names.txt`: List of names (one per line, comma-separated for groups)
    - `data/individual_message.txt`: Message for individual invites (use {name} placeholder)
    - `data/group_message.txt`: Message for group invites (use {names} placeholder)
-   - `data/vcards/`: Directory containing your vcard files (\*.vcf)
+   - `data/vcards/`: Directory containing your vcard files (*.vcf)
 
 2. Run the tool:
 
@@ -61,7 +61,7 @@ Example files are provided in the `data` directory:
 - `data/group_message_example.txt`: Example message for group invites
 - `data/vcards/example.vcf`: Example vCard file with sample contacts
 
-To use the example files, rename them by removing the "\_example" suffix:
+To use the example files, rename them by removing the "_example" suffix:
 
 ```bash
 cd data
@@ -103,7 +103,7 @@ When a line in `names.txt` contains multiple names (separated by " e "), the gro
 ## Requirements
 
 - Node.js 14+
-- Vcard files (\*.vcf) in the data/vcards directory
+- Vcard files (*.vcf) in the data/vcards directory
 - WhatsApp Web or Desktop installed
 
 ## Development
@@ -111,11 +111,40 @@ When a line in `names.txt` contains multiple names (separated by " e "), the gro
 ### Project Structure
 
 - `src/index.js`: Main application entry point
+- `src/invitation/`: Invitation-related functionality
+  - `InvitationBuilder.js`: Handles invitation generation and HTML output
 - `src/contacts/`: Contact-related functionality
   - `ContactParser.js`: Parses vCard files
   - `ContactMatcher.js`: Matches names with contacts using fuzzy matching
 - `src/messages/`: Message-related functionality
   - `MessageBuilder.js`: Handles message formatting and placeholders
+
+### Testing
+
+Run the tests:
+
+```bash
+npm test
+```
+
+The test suite covers:
+- Contact parsing and matching
+- Message building and formatting
+- Invitation generation
+- Error handling
+
+Test files are organized to mirror the source code structure:
+```
+src/
+  ├── __tests__/
+  │   ├── invitation/
+  │   │   └── InvitationBuilder.test.js
+  │   ├── messages/
+  │   │   └── MessageBuilder.test.js
+  │   └── contacts/
+  │       ├── ContactParser.test.js
+  │       └── ContactMatcher.test.js
+```
 
 ## Tools
 
@@ -123,6 +152,7 @@ When a line in `names.txt` contains multiple names (separated by " e "), the gro
 - [levenshtein](https://github.com/gf3/Levenshtein) - String similarity measurement
 - [vcard-parser](https://github.com/taoyuan/vcard-parser) - vCard file parsing
 - [open](https://github.com/sindresorhus/open) - Open files and URLs in the default application
+- [jest](https://jestjs.io/) - Testing framework
 
 ## License
 

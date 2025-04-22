@@ -113,3 +113,8 @@ export class ContactParser {
     return this.contacts;
   }
 }
+
+// CommonJS compatibility
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { ContactParser };
+}

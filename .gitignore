@@ -12,3 +12,6 @@ data/**/*.*
 !data/names_example.txt
 
 .history
+
+# OS generated files
+.DS_Store
