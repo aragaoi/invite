@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Original data files (example files are tracked)
+data/**/*.*
+!data/vcards/example.vcf
+!data/group_message_example.txt
+!data/individual_message_example.txt
+!data/names_example.txt
+
+.history
