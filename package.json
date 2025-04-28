@@ -1,7 +1,7 @@
 {
   "name": "invitation-builder",
   "author": "aragaoi",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "WhatsApp invitation builder with contact matching",
   "main": "src/index.js",
   "type": "module",
