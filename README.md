@@ -7,13 +7,17 @@ A tool to create WhatsApp invitation links by matching names with contacts from 
 - Parse contacts from multiple vcard files
 - Match names with contacts using fuzzy matching (Levenshtein distance)
 - [Create individual or group WhatsApp links](#message-placeholders)
-- Interactive confirmation of matches with confidence scores
 - Generate HTML file with clickable links
 - Track opened links
 - Edit messages and phone numbers before sending
 - [Message placeholders for names](#message-placeholders)
 - Support for multiple phone numbers per contact
 - Automatic browser opening of generated HTML
+- Skip functionality for invitations
+- Persistent storage of selections and skipped invitations
+- Grouped display of contacts and their phone numbers
+- Confidence score visualization
+- Editable guest names
 
 ## Installation
 
@@ -41,16 +45,18 @@ The tool will:
 1. Load all vcard files from the vcards directory
 2. Read names and messages from the input files
 3. Find probable matches for each name using fuzzy matching
-4. Show confidence scores for each match
-5. Let you confirm the matches and select phone numbers for contacts with multiple numbers
-6. Generate an HTML file with:
+4. Generate an HTML file with:
    - Numbered list of invitations
    - Editable messages with placeholders
-   - Editable phone numbers
+   - Editable guest names
    - Message preview showing the formatted text
-   - Clickable links that update when messages or numbers are edited
+   - Clickable links that update when messages or names are edited
    - Visual feedback for opened links
+   - Skip button for each invitation
    - List of skipped and not found names
+   - Confidence score indicators for each match
+   - Grouped display of contacts and their phone numbers
+5. Automatically open the generated HTML in your default browser
 
 ## Example Files
 
@@ -87,18 +93,37 @@ The tool generates WhatsApp links in the following format:
 - Individual: `https://wa.me/PHONE_NUMBER?text=Hello%20John!%20You're%20invited%20to%20our%20event`
 
 The links are automatically URL-encoded and include:
-- Phone numbers in international format (without + or spaces)
+- Phone numbers in international format
 - The formatted message with placeholders replaced
-
-Note: WhatsApp links only support individual messages. For multiple recipients, separate links will be generated.
 
 ### Group Messages
 
-When a line in `names.txt` contains multiple names (separated by " e "), the group message will be used. For example:
+When a line in `names.txt` contains multiple names (separated by the characters specified in `GROUP_SEPARATORS` environment variable, defaulting to `,` and ` e `), the group message will be used. For example:
 
-- If `names.txt` contains: `"John e Mary"`
+- If `names.txt` contains: `"John e Mary"` or `"John, Mary"`
 - The group message will be used, replacing `{names}` with "John, Mary"
 - The resulting message will be: "Hello John, Mary! You're all invited to our event"
+
+You can customize the separators by setting the `GROUP_SEPARATORS` environment variable to a pipe-separated list of separator strings. For example:
+```bash
+export GROUP_SEPARATORS=",| e | and "
+```
+
+### Skip Functionality
+
+- Each invitation has a skip button
+- Clicking the skip button toggles the invitation's skipped state
+- Skipped invitations are stored in localStorage
+- Skipped invitations are shown in a collapsed format
+- A list of all skipped invitations is shown at the bottom of the page
+
+### Persistent Storage
+
+The tool uses localStorage to persist:
+- Selected phone numbers for each invitation
+- Skipped invitations
+- Edited guest names
+- Opened links
 
 ## Requirements
 
@@ -148,7 +173,6 @@ src/
 
 ## Tools
 
-- [inquirer](https://github.com/SBoudrias/Inquirer.js) - Interactive command line interface
 - [levenshtein](https://github.com/gf3/Levenshtein) - String similarity measurement
 - [vcard-parser](https://github.com/taoyuan/vcard-parser) - vCard file parsing
 - [open](https://github.com/sindresorhus/open) - Open files and URLs in the default application

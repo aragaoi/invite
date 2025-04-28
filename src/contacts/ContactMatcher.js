@@ -24,7 +24,7 @@ export class ContactMatcher {
       }))
       .sort((a, b) => b.confidence - a.confidence);
     return matches.some((match) => match.confidence >= 0.5)
-      ? matches.slice(0, 1)
+      ? matches.slice(0, 3)
       : matches.slice(0, 5);
   }
 

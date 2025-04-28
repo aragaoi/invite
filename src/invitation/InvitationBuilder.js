@@ -1,10 +1,8 @@
-import inquirer from "inquirer";
 import fs from "fs/promises";
 import path from "path";
 import { ContactParser } from "../contacts/ContactParser.js";
 import { ContactMatcher } from "../contacts/ContactMatcher.js";
 import { MessageBuilder } from "../messages/MessageBuilder.js";
-import readline from "readline";
 
 export class InvitationBuilder {
   constructor() {
@@ -60,128 +58,52 @@ export class InvitationBuilder {
 
   async findAndConfirmMatches(names, contactMatcher) {
     const matches = [];
-    const probableMatches = [];
     const skipped = [];
 
-    for (const name of names) {
-      const isGroup = name.includes(" e ") || name.includes(",");
+    // Get separators from environment variable or use defaults
+    const separators = process.env.GROUP_SEPARATORS
+      ? process.env.GROUP_SEPARATORS.split("|").map((s) => s.trim())
+      : [",", " e "];
+
+    for (const originalName of names) {
+      const isGroup = separators.some((sep) => originalName.includes(sep));
       const groupNames = isGroup
-        ? name.split(/ e |, /).map((n) => n.trim())
-        : [name];
+        ? originalName
+            .split(
+              new RegExp(
+                separators
+                  .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+                  .join("|")
+              )
+            )
+            .map((n) => n.trim())
+        : [originalName];
 
       const groupContacts = [];
-      for (const groupName of groupNames) {
-        const contacts = await contactMatcher.findMatches(groupName);
+      for (const rawName of groupNames) {
+        const name = rawName.replace(/\s*\(.*\)\s*/, ""); // Remove parenthesized text
+
+        const contacts = await contactMatcher.findMatches(name);
         if (contacts.length === 0) {
-          console.log(`No matches found for ${groupName}`);
-          skipped.push({ name: groupName, reason: "No matches found" });
+          console.log(`No matches found for ${name}`);
+          skipped.push({ name: name, reason: "No matches found" });
           continue;
         }
 
-        if (contacts.length === 1) {
-          groupContacts.push({
-            ...contacts[0],
-            phone: contacts[0].phones[0],
-          });
-          continue;
-        }
-
-        const probableMatch = contacts.find(
-          (contact) =>
-            contact.name.toLowerCase() === groupName.toLowerCase() ||
-            contact.name.toLowerCase().includes(groupName.toLowerCase()) ||
-            groupName.toLowerCase().includes(contact.name.toLowerCase())
-        );
-
-        if (probableMatch) {
-          groupContacts.push({
-            ...probableMatch,
-            phone: probableMatch.phones[0],
-          });
-          continue;
-        }
-
-        probableMatches.push({
-          name: groupName,
-          contacts: contacts.map((contact) => ({
-            ...contact,
-            phone: contact.phones[0],
-          })),
-          isGroup: true,
-        });
+        // Use all matches
+        groupContacts.push(...contacts);
       }
 
       if (groupContacts.length > 0) {
         matches.push({
-          name,
+          name: originalName,
           contacts: groupContacts,
           isGroup,
         });
       }
     }
 
-    if (probableMatches.length > 0) {
-      console.log("\nProbable matches found:");
-      for (const match of probableMatches) {
-        console.log(`\nFor name: ${match.name}`);
-        const selectedIndexes = await this.promptForSelection(match.contacts);
-
-        if (selectedIndexes.includes(0)) {
-          skipped.push({ name: match.name, reason: "Skipped by user" });
-          continue;
-        }
-
-        const selectedContacts = selectedIndexes
-          .filter((index) => index > 0)
-          .map((index) => match.contacts[index - 1]);
-
-        if (selectedContacts.length > 0) {
-          matches.push({
-            name: match.name,
-            contacts: selectedContacts,
-            isGroup: match.isGroup,
-          });
-        } else {
-          skipped.push({ name: match.name, reason: "Skipped by user" });
-        }
-      }
-    }
-
     return { matches, skipped };
-  }
-
-  async promptForSelection(contacts) {
-    const choices = [
-      ...contacts.map((contact, index) => ({
-        name: contact.phone
-          ? `${contact.name} - ${contact.phone}`
-          : `${contact.name} (no phone number)`,
-        value: index + 1,
-        disabled: !contact.phone,
-      })),
-      new inquirer.Separator(),
-      {
-        name: "Skip this contact",
-        value: 0,
-      },
-    ];
-
-    const { selectedIndexes } = await inquirer.prompt([
-      {
-        type: "checkbox",
-        name: "selectedIndexes",
-        message: "Select contacts (use space to select, enter to confirm):",
-        choices,
-        validate: (answer) => {
-          if (answer.length === 0) {
-            return "You must choose at least one option or skip.";
-          }
-          return true;
-        },
-      },
-    ]);
-
-    return selectedIndexes;
   }
 
   generateHtml(matches, skipped, individualMessage, groupMessage) {
@@ -194,44 +116,292 @@ export class InvitationBuilder {
         body { font-family: Arial, sans-serif; margin: 20px; }
         .invitation { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; }
         .opened { color: #888; text-decoration: line-through; }
+        .skipped-invitation { background-color: #f8f9fa; }
+        .skipped-flag { 
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-left: 10px;
+            background-color: #f8d7da;
+            color: #721c24;
+        }
         a { color: #007bff; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        .message-input { width: 100%; margin: 10px 0; padding: 5px; }
+        a:disabled { color: #ccc; pointer-events: none; }
+        .message-textarea { 
+            width: 100%; 
+            margin: 10px 0; 
+            padding: 5px;
+            min-height: 100px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .name-input { width: 200px; margin: 5px 0; padding: 5px; }
         .number-input { width: 200px; margin: 5px 0; padding: 5px; }
         .number { font-weight: bold; margin-right: 10px; }
-        .preview { margin: 5px 0; padding: 5px; background: #f5f5f5; }
+        .preview { 
+            margin: 5px 0; 
+            padding: 5px; 
+            background: #f5f5f5;
+            white-space: pre-wrap;
+        }
         .contact { margin: 5px 0; }
         .original-name { color: #666; font-style: italic; }
         .skipped { margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd; }
         .skipped h2 { color: #666; }
         .skipped ul { list-style-type: none; padding-left: 0; }
         .skipped li { margin: 5px 0; color: #888; }
+        .phone-options { margin: 5px 0; }
+        .phone-option { margin: 5px 0; }
+        .phone-option input { margin-right: 5px; }
+        .group-names { margin: 10px 0; }
+        .group-name { margin-right: 10px; }
+        .contact-phones { margin-left: 20px; }
+        .confidence { 
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        .confidence.high { background-color: #d4edda; color: #155724; }
+        .confidence.medium { background-color: #fff3cd; color: #856404; }
+        .confidence.low { background-color: #f8d7da; color: #721c24; }
+        .whatsapp-links { margin-top: 10px; }
+        .whatsapp-link { margin-right: 10px; }
+        .skip-button { 
+            margin-left: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            cursor: pointer;
+        }
+        .skip-button:hover {
+            background-color: #f5c6cb;
+        }
+        .invitation-content { display: block; }
+        .skipped-invitation .invitation-content { display: none; }
+        .skipped-invitation .skipped-content { display: block; }
+        .skipped-content { display: none; }
     </style>
     <script>
-        function updatePhone(invitationIndex, contactIndex, newPhone) {
-            const link = document.getElementById(\`link-\${invitationIndex}-\${contactIndex}\`);
-            const text = link.href.split('text=')[1];
-            link.href = \`https://wa.me/\${newPhone}?text=\${text}\`;
+        // Utility functions
+        function formatPhoneNumber(phone) {
+            // Remove all non-digit characters
+            const cleaned = phone.replace(/\D/g, '');
+            
+            // Format Brazilian numbers (assuming 55 is the country code)
+            if (cleaned.startsWith('55')) {
+                const countryCode = cleaned.substring(0, 2);
+                const areaCode = cleaned.substring(2, 4);
+                const firstPart = cleaned.substring(4, 9);
+                const secondPart = cleaned.substring(9);
+                return \`\${countryCode} \${areaCode} \${firstPart}-\${secondPart}\`;
+            }
+            
+            // Default format for other numbers
+            return phone;
+        }
+
+        function encodeMessageForWhatsApp(message) {
+            // First encode the message
+            const encoded = encodeURIComponent(message);
+            
+            // Replace %20 with + for better URL readability
+            const withSpaces = encoded.replace(/%20/g, '+');
+            
+            // Handle newlines
+            return withSpaces.replace(/%0A/g, '%0A');
+        }
+
+        // Storage functions
+        function getOpenedLinks() {
+            const opened = localStorage.getItem('openedLinks');
+            return opened ? JSON.parse(opened) : [];
+        }
+
+        function saveOpenedLinks(links) {
+            localStorage.setItem('openedLinks', JSON.stringify(links));
+        }
+
+        function getSelectedContacts() {
+            const selected = localStorage.getItem('selectedContacts');
+            return selected ? JSON.parse(selected) : {};
+        }
+
+        function saveSelectedContacts(selected) {
+            localStorage.setItem('selectedContacts', JSON.stringify(selected));
+        }
+
+        function getEditedNames() {
+            const edited = localStorage.getItem('editedNames');
+            return edited ? JSON.parse(edited) : {};
+        }
+
+        function saveEditedNames(edited) {
+            localStorage.setItem('editedNames', JSON.stringify(edited));
+        }
+
+        function getSkippedInvitations() {
+            const skipped = localStorage.getItem('skippedInvitations');
+            return skipped ? JSON.parse(skipped) : [];
+        }
+
+        function saveSkippedInvitations(skipped) {
+            localStorage.setItem('skippedInvitations', JSON.stringify(skipped));
+        }
+
+        function skipInvitation(index) {
+            const invitation = document.getElementById(\`invitation-\${index}\`);
+            const skippedInvitations = getSkippedInvitations();
+            
+            if (skippedInvitations.includes(index)) {
+                // Unskip
+                const newSkipped = skippedInvitations.filter(i => i !== index);
+                saveSkippedInvitations(newSkipped);
+                invitation.classList.remove('skipped-invitation');
+            } else {
+                // Skip
+                skippedInvitations.push(index);
+                saveSkippedInvitations(skippedInvitations);
+                invitation.classList.add('skipped-invitation');
+            }
         }
 
         function updateLink(input, index) {
             const message = input.value;
-            const contacts = document.querySelectorAll(\`#invitation-\${index} .contact\`);
-            const allNames = document.querySelector(\`#invitation-\${index} .original-group-name\`).textContent;
+            const invitation = document.getElementById(\`invitation-\${index}\`);
+            const editedNames = getEditedNames();
+            const originalName = invitation.querySelector('.original-group-name').textContent;
+            const currentNames = editedNames[originalName] || originalName;
+            const isGroup = message.includes('{names}');
+            const newMessage = isGroup 
+                ? message.replace('{names}', currentNames)
+                : message.replace('{name}', currentNames);
             
-            contacts.forEach((contact, contactIndex) => {
-                const link = document.getElementById(\`link-\${index}-\${contactIndex}\`);
-                const preview = document.getElementById(\`preview-\${index}-\${contactIndex}\`);
-                const phone = link.href.split('wa.me/')[1].split('?')[0];
-                const newMessage = message.replace('{names}', allNames);
-                preview.textContent = newMessage;
-                link.href = \`https://wa.me/\${phone}?text=\${encodeURIComponent(newMessage)}\`;
+            invitation.querySelector('.preview').textContent = newMessage;
+            
+            const links = invitation.querySelectorAll('.whatsapp-link');
+            links.forEach(link => {
+                if (link && link.href) {
+                    const phoneMatch = link.href.match(/phone=([^&]+)/);
+                    if (phoneMatch && phoneMatch[1]) {
+                        const phone = phoneMatch[1];
+                        link.href = \`https://api.whatsapp.com/send/?phone=\${phone}&text=\${encodeMessageForWhatsApp(newMessage)}&type=phone_number&app_absent=0\`;
+                    }
+                }
             });
         }
 
-        function markAsOpened(link) {
-            link.parentElement.classList.add('opened');
+        function updateNames(input, index) {
+            const invitation = document.getElementById(\`invitation-\${index}\`);
+            const originalName = invitation.querySelector('.original-group-name').textContent;
+            const editedNames = getEditedNames();
+            editedNames[originalName] = input.value;
+            saveEditedNames(editedNames);
+            
+            // Update message preview
+            const messageInput = invitation.querySelector('.message-textarea');
+            updateLink(messageInput, index);
         }
+
+        function markAsOpened(link) {
+            const originalName = link.closest('.invitation').querySelector('.original-group-name').textContent;
+            const openedLinks = getOpenedLinks();
+            if (!openedLinks.includes(originalName)) {
+                openedLinks.push(originalName);
+                saveOpenedLinks(openedLinks);
+            }
+            link.closest('.invitation').classList.add('opened');
+        }
+
+        function handleContactSelection(checkbox, index) {
+            const selectedContacts = getSelectedContacts();
+            const invitation = document.getElementById(\`invitation-\${index}\`);
+            const originalName = invitation.querySelector('.original-group-name').textContent;
+            const phone = checkbox.value;
+            
+            if (!selectedContacts[originalName]) {
+                selectedContacts[originalName] = [];
+            }
+            
+            if (checkbox.checked) {
+                if (!selectedContacts[originalName].includes(phone)) {
+                    selectedContacts[originalName].push(phone);
+                }
+            } else {
+                selectedContacts[originalName] = selectedContacts[originalName].filter(p => p !== phone);
+                if (selectedContacts[originalName].length === 0) {
+                    delete selectedContacts[originalName];
+                }
+            }
+            
+            saveSelectedContacts(selectedContacts);
+            updateWhatsappLinks(index);
+        }
+
+        function updateWhatsappLinks(index) {
+            const invitation = document.getElementById(\`invitation-\${index}\`);
+            const originalName = invitation.querySelector('.original-group-name').textContent;
+            const selectedContacts = getSelectedContacts();
+            const selectedPhones = selectedContacts[originalName] || [];
+            const message = invitation.querySelector('.message-textarea').value;
+            const editedNames = getEditedNames();
+            const currentNames = editedNames[originalName] || originalName;
+            const isGroup = message.includes('{names}');
+            const formattedMessage = isGroup
+                ? message.replace('{names}', currentNames)
+                : message.replace('{name}', currentNames);
+            
+            const linksContainer = invitation.querySelector('.whatsapp-links');
+            linksContainer.innerHTML = selectedPhones.map(phoneNumber => \`
+                <a href="https://api.whatsapp.com/send/?phone=\${encodeURIComponent(phoneNumber)}&text=\${encodeMessageForWhatsApp(formattedMessage)}&type=phone_number&app_absent=0" 
+                   onclick="markAsOpened(this)" 
+                   class="whatsapp-link"
+                   target="_blank">Open WhatsApp (\${formatPhoneNumber(phoneNumber)})</a>
+            \`).join('');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const openedLinks = getOpenedLinks();
+            const selectedContacts = getSelectedContacts();
+            const editedNames = getEditedNames();
+            const skippedInvitations = getSkippedInvitations();
+            
+            document.querySelectorAll('.invitation').forEach(invitation => {
+                const index = parseInt(invitation.id.split('-')[1]);
+                const originalName = invitation.querySelector('.original-group-name').textContent;
+                
+                if (openedLinks.includes(originalName)) {
+                    invitation.classList.add('opened');
+                }
+                
+                if (skippedInvitations.includes(index)) {
+                    invitation.classList.add('skipped-invitation');
+                }
+                
+                if (selectedContacts[originalName]) {
+                    selectedContacts[originalName].forEach(phone => {
+                        const checkbox = invitation.querySelector(\`input[value="\${phone}"]\`);
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+                    });
+                    updateWhatsappLinks(index);
+                }
+
+                if (editedNames[originalName]) {
+                    const nameInput = invitation.querySelector('.name-input');
+                    nameInput.value = editedNames[originalName];
+                    const messageInput = invitation.querySelector('.message-textarea');
+                    updateLink(messageInput, index);
+                }
+            });
+        });
     </script>
 </head>
 <body>
@@ -240,41 +410,64 @@ export class InvitationBuilder {
     ${matches
       .map((match, index) => {
         const message = match.isGroup ? groupMessage : individualMessage;
-        const formattedMessage = match.isGroup
+        const isGroup = message.includes("{names}");
+        const formattedMessage = isGroup
           ? message.replace("{names}", match.name)
-          : message.replace("{name}", match.contacts[0].name);
-        const url = match.isGroup
-          ? match.contacts.map(
-              (contact) =>
-                `https://wa.me/${contact.phone}?text=${encodeURIComponent(
-                  formattedMessage
-                )}`
-            )
-          : match.contacts.map(
-              (contact) =>
-                `https://wa.me/${contact.phone}?text=${encodeURIComponent(formattedMessage)}`
-            );
+          : message.replace("{name}", match.name);
 
         return `
         <li class="invitation" id="invitation-${index}">
             <h2>Invitation ${index + 1}</h2>
-            <div class="contacts">
-              <span class="original-group-name" style="display: none">${match.name}</span>
-              ${match.contacts
-                .map(
-                  (contact, contactIndex) => `
-                <div class="contact">
-                  <span class="original-name">${match.name}</span>
-                  <span> → ${contact.name}</span>
-                  <input type="text" class="number-input" value="${contact.phone}" 
-                         onchange="updatePhone(${index}, ${contactIndex}, this.value)">
-                  <p>Message: <input type="text" class="message-input" value="${message}" onchange="updateLink(this, ${index})"></p>
-                  <div class="preview" id="preview-${index}-${contactIndex}">${formattedMessage}</div>
-                  <a href="${url[contactIndex]}" onclick="markAsOpened(this)" data-index="${index}" id="link-${index}-${contactIndex}" target="_blank">Open WhatsApp</a>
+            <div class="group-names">
+                <input type="text" 
+                       class="name-input" 
+                       value="${match.name}" 
+                       onchange="updateNames(this, ${index})"
+                       placeholder="Edit guest names">
+                <button class="skip-button" onclick="skipInvitation(${index})">Skip</button>
+            </div>
+            <span class="original-group-name" style="display: none">${match.name}</span>
+            <div class="invitation-content">
+                <div class="phone-options">
+                    ${match.contacts
+                      .map((contact) => {
+                        const confidenceClass =
+                          contact.confidence >= 0.8
+                            ? "high"
+                            : contact.confidence >= 0.5
+                              ? "medium"
+                              : "low";
+                        return `
+                          <div class="contact">
+                            <strong>${contact.name}</strong>
+                            <span class="confidence ${confidenceClass}">
+                              ${Math.round(contact.confidence * 100)}% match
+                            </span>
+                            <div class="contact-phones">
+                              ${contact.phones
+                                .map(
+                                  (phone) => `
+                                <div class="phone-option">
+                                  <input type="checkbox" 
+                                         value="${phone}" 
+                                         onchange="handleContactSelection(this, ${index})">
+                                  <label>${phone}</label>
+                                </div>
+                              `
+                                )
+                                .join("")}
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join("")}
                 </div>
-              `
-                )
-                .join("")}
+                <p>Message: <textarea class="message-textarea" onchange="updateLink(this, ${index})">${message}</textarea></p>
+                <div class="preview">${formattedMessage}</div>
+                <div class="whatsapp-links"></div>
+            </div>
+            <div class="skipped-content">
+                <span class="skipped-flag">Skipped</span>
             </div>
         </li>
     `;
@@ -282,30 +475,53 @@ export class InvitationBuilder {
       .join("")}
     </ol>
     
-    ${
-      skipped.length > 0
-        ? `
-    <div class="skipped">
-        <h2>Skipped Names</h2>
-        <ul>
-            ${skipped
-              .filter((s) => s.reason === "Skipped by user")
-              .map((s) => `<li>${s.name}</li>`)
-              .join("")}
-        </ul>
-        <h2>Not Found Names</h2>
-        <ul>
-            ${skipped
-              .filter((s) => s.reason === "No matches found")
-              .map((s) => `<li>${s.name}</li>`)
-              .join("")}
-        </ul>
-    </div>`
-        : ""
-    }
+    <div id="skipped-section"></div>
 </body>
 </html>`;
 
-    return html;
+    // Add script to generate skipped section
+    const skippedSectionScript = `
+    <script>
+        function generateSkippedSection() {
+            const skippedSection = document.getElementById('skipped-section');
+            const skipped = ${JSON.stringify(skipped)};
+            const matches = ${JSON.stringify(matches)};
+            const skippedInvitations = getSkippedInvitations();
+            
+            if (skipped.length > 0 || skippedInvitations.length > 0) {
+                const html = \`
+                    <div class="skipped">
+                        <h2>Skipped Names</h2>
+                        <ul>
+                            \${skipped
+                                .filter((s) => s.reason === "Skipped by user")
+                                .map((s) => \`<li>\${s.name}</li>\`)
+                                .join("")}
+                            \${matches
+                                .filter((m, index) => skippedInvitations.includes(index))
+                                .map((m) => \`<li>\${m.name}</li>\`)
+                                .join("")}
+                        </ul>
+                        <h2>Not Found Names</h2>
+                        <ul>
+                            \${skipped
+                                .filter((s) => s.reason === "No matches found")
+                                .map((s) => \`<li>\${s.name}</li>\`)
+                                .join("")}
+                        </ul>
+                    </div>
+                \`;
+                skippedSection.innerHTML = html;
+            }
+        }
+        
+        // Generate skipped section after page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            generateSkippedSection();
+        });
+    </script>
+    `;
+
+    return html + skippedSectionScript;
   }
 }

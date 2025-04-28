@@ -83,8 +83,10 @@ export class ContactParser {
   async loadContactsFromDirectory(directoryPath = "data/vcards") {
     try {
       const files = await fs.readdir(directoryPath);
-      const vcardFiles = files.filter((file) =>
-        file.toLowerCase().endsWith(".vcf")
+      const vcardFiles = files.filter(
+        (file) =>
+          file.toLowerCase().endsWith(".vcf") &&
+          !file.toLowerCase().includes("example.vcf")
       );
 
       const allContacts = await Promise.all(
