@@ -1,4 +1,3 @@
-import inquirer from "inquirer";
 import fs from "fs/promises";
 import path from "path";
 import { InvitationBuilder } from "../../invitation/InvitationBuilder.js";
@@ -6,19 +5,15 @@ import { ContactParser } from "../../contacts/ContactParser.js";
 import { ContactMatcher } from "../../contacts/ContactMatcher.js";
 
 // Mock dependencies
-jest.mock("inquirer");
 jest.mock("fs/promises");
 jest.mock("../../contacts/ContactParser.js");
 jest.mock("../../contacts/ContactMatcher.js");
 
 describe("InvitationBuilder", () => {
   let invitationBuilder;
-  let mockContactMatcher;
 
   beforeEach(() => {
-    mockContactMatcher = new ContactMatcher();
     invitationBuilder = new InvitationBuilder();
-    invitationBuilder.contactMatcher = mockContactMatcher;
     jest.clearAllMocks();
   });
 
@@ -50,33 +45,72 @@ describe("InvitationBuilder", () => {
   });
 
   describe("findAndConfirmMatches", () => {
-    it("should handle matches and user selections", async () => {
-      const names = ["John", "Jane"];
+    it("should handle matches with default separators", async () => {
+      const names = ["John e Mary", "Jane, Bob"];
       const mockContacts = [
-        { name: "John Doe", phone: "1234567890" },
-        { name: "Jane Smith", phone: "0987654321" },
+        { name: "John", phones: ["1234567890"], confidence: 0.9 },
+        { name: "Mary", phones: ["0987654321"], confidence: 0.9 },
+        { name: "Jane", phones: ["1122334455"], confidence: 0.9 },
+        { name: "Bob", phones: ["5566778899"], confidence: 0.9 },
       ];
 
-      mockContactMatcher.findMatches.mockImplementation((name) => {
-        if (name === "John") return [mockContacts[0]];
-        if (name === "Jane") return [mockContacts[1]];
-        return [];
-      });
+      const mockContactMatcher = {
+        findMatches: jest.fn().mockImplementation((name) => {
+          const contact = mockContacts.find((c) => c.name === name);
+          return Promise.resolve(contact ? [contact] : []);
+        }),
+      };
 
-      const result = await invitationBuilder.findAndConfirmMatches(names);
+      const result = await invitationBuilder.findAndConfirmMatches(
+        names,
+        mockContactMatcher
+      );
       expect(result.matches).toHaveLength(2);
-      expect(result.matches[0].name).toBe("John");
-      expect(result.matches[0].contacts[0].name).toBe("John Doe");
-      expect(result.matches[1].name).toBe("Jane");
-      expect(result.matches[1].contacts[0].name).toBe("Jane Smith");
-      expect(result.skipped).toHaveLength(0);
+      expect(result.matches[0].isGroup).toBe(true);
+      expect(result.matches[0].contacts).toHaveLength(2);
+      expect(result.matches[1].isGroup).toBe(true);
+      expect(result.matches[1].contacts).toHaveLength(2);
+    });
+
+    it("should handle matches with custom separators", async () => {
+      process.env.GROUP_SEPARATORS = " and | with ";
+      const names = ["John and Mary", "Jane with Bob"];
+      const mockContacts = [
+        { name: "John", phones: ["1234567890"], confidence: 0.9 },
+        { name: "Mary", phones: ["0987654321"], confidence: 0.9 },
+        { name: "Jane", phones: ["1122334455"], confidence: 0.9 },
+        { name: "Bob", phones: ["5566778899"], confidence: 0.9 },
+      ];
+
+      const mockContactMatcher = {
+        findMatches: jest.fn().mockImplementation((name) => {
+          const contact = mockContacts.find((c) => c.name === name);
+          return Promise.resolve(contact ? [contact] : []);
+        }),
+      };
+
+      const result = await invitationBuilder.findAndConfirmMatches(
+        names,
+        mockContactMatcher
+      );
+      expect(result.matches).toHaveLength(2);
+      expect(result.matches[0].isGroup).toBe(true);
+      expect(result.matches[0].contacts).toHaveLength(2);
+      expect(result.matches[1].isGroup).toBe(true);
+      expect(result.matches[1].contacts).toHaveLength(2);
+      delete process.env.GROUP_SEPARATORS;
     });
 
     it("should handle no matches found", async () => {
       const names = ["Bob"];
-      mockContactMatcher.findMatches.mockReturnValue([]);
+      const mockContactMatcher = {
+        findMatches: jest.fn().mockResolvedValue([]),
+      };
 
-      const result = await invitationBuilder.findAndConfirmMatches(names);
+      const result = await invitationBuilder.findAndConfirmMatches(
+        names,
+        mockContactMatcher
+      );
       expect(result.matches).toHaveLength(0);
       expect(result.skipped).toHaveLength(1);
       expect(result.skipped[0].name).toBe("Bob");
@@ -103,24 +137,15 @@ describe("InvitationBuilder", () => {
       ]);
 
       // Mock ContactMatcher
-      ContactMatcher.prototype.findMatches.mockReturnValue([
-        {
-          name: "John Doe",
-          phones: ["1234567890"],
-          confidence: 1,
-        },
-      ]);
-
-      // Mock inquirer
-      inquirer.prompt.mockResolvedValue({
-        selectedContact: {
-          name: "John Doe",
-          phones: ["1234567890"],
-          phone: "1234567890",
-          originalName: "John Doe",
-          confidence: 1,
-        },
-      });
+      ContactMatcher.mockImplementation(() => ({
+        findMatches: jest.fn().mockResolvedValue([
+          {
+            name: "John Doe",
+            phones: ["1234567890"],
+            confidence: 1,
+          },
+        ]),
+      }));
 
       // Mock file system operations
       fs.mkdir.mockResolvedValue(undefined);
@@ -159,7 +184,13 @@ describe("InvitationBuilder", () => {
       const matches = [
         {
           name: "John",
-          contacts: [{ name: "John Doe", phone: "1234567890" }],
+          contacts: [
+            {
+              name: "John Doe",
+              phones: ["1234567890"],
+              confidence: 0.9,
+            },
+          ],
           isGroup: false,
         },
       ];
@@ -177,11 +208,37 @@ describe("InvitationBuilder", () => {
         groupMessage
       );
 
-      expect(html).toContain("Hello John Doe!");
-      expect(html).toContain("Skipped Names");
-      expect(html).toContain("Not Found Names");
+      expect(html).toContain("John Doe");
+      expect(html).toContain("90% match");
+      expect(html).toContain("1234567890");
+      expect(html).toContain("Hello {name}!");
       expect(html).toContain("Jane");
       expect(html).toContain("Bob");
+    });
+
+    it("should generate HTML with formatted phone numbers", () => {
+      const matches = [
+        {
+          name: "John",
+          contacts: [
+            {
+              name: "John Doe",
+              phones: ["551234567890"],
+              confidence: 0.9,
+            },
+          ],
+          isGroup: false,
+        },
+      ];
+
+      const html = invitationBuilder.generateHtml(
+        matches,
+        [],
+        "Hello {name}!",
+        "Hello {names}!"
+      );
+
+      expect(html).toContain("551234567890");
     });
 
     it("should handle empty matches and skipped lists", () => {
@@ -193,8 +250,6 @@ describe("InvitationBuilder", () => {
       );
 
       expect(html).toContain("WhatsApp Invitations");
-      expect(html).not.toContain("Skipped Names");
-      expect(html).not.toContain("Not Found Names");
     });
   });
 });

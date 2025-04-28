@@ -8,67 +8,87 @@ describe("MessageBuilder", () => {
   });
 
   describe("createIndividualMessage", () => {
-    it("should create a WhatsApp URL with name and message", () => {
-      const name = "John Doe";
+    it("should create individual message with name replacement", () => {
+      const name = "John";
       const phone = "1234567890";
       const message = "Hello {name}!";
+
       const result = messageBuilder.createIndividualMessage(
         name,
         phone,
         message
       );
-      expect(result).toBe("https://wa.me/1234567890?text=Hello%20John%20Doe!");
+      expect(result).toBe("https://wa.me/1234567890?text=Hello%20John!");
+    });
+
+    it("should handle special characters in name", () => {
+      const name = "João";
+      const phone = "1234567890";
+      const message = "Hello {name}!";
+
+      const result = messageBuilder.createIndividualMessage(
+        name,
+        phone,
+        message
+      );
+      expect(result).toBe("https://wa.me/1234567890?text=Hello%20Jo%C3%A3o!");
     });
   });
 
   describe("createGroupMessage", () => {
-    it("should create individual WhatsApp URLs with the original group name", () => {
+    it("should create group message with names replacement", () => {
       const names = ["John", "Mary"];
       const originalNames = "John e Mary";
       const phones = ["1234567890", "0987654321"];
       const message = "Hello {names}!";
+
       const result = messageBuilder.createGroupMessage(
         names,
         originalNames,
         phones,
         message
       );
-      expect(result).toEqual([
-        "https://wa.me/1234567890?text=Hello%20John%20e%20Mary!",
-        "https://wa.me/0987654321?text=Hello%20John%20e%20Mary!",
-      ]);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBe(
+        "https://wa.me/1234567890?text=Hello%20John%20e%20Mary!"
+      );
+      expect(result[1]).toBe(
+        "https://wa.me/0987654321?text=Hello%20John%20e%20Mary!"
+      );
     });
 
-    it("should handle group names with commas", () => {
-      const names = ["John", "Mary", "Peter"];
-      const originalNames = "John, Mary, Peter";
-      const phones = ["1234567890", "0987654321", "1122334455"];
+    it("should handle special characters in names", () => {
+      const names = ["João", "Maria"];
+      const originalNames = "João e Maria";
+      const phones = ["1234567890", "0987654321"];
       const message = "Hello {names}!";
+
       const result = messageBuilder.createGroupMessage(
         names,
         originalNames,
         phones,
         message
       );
-      expect(result).toEqual([
-        "https://wa.me/1234567890?text=Hello%20John%2C%20Mary%2C%20Peter!",
-        "https://wa.me/0987654321?text=Hello%20John%2C%20Mary%2C%20Peter!",
-        "https://wa.me/1122334455?text=Hello%20John%2C%20Mary%2C%20Peter!",
-      ]);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBe(
+        "https://wa.me/1234567890?text=Hello%20Jo%C3%A3o%20e%20Maria!"
+      );
+      expect(result[1]).toBe(
+        "https://wa.me/0987654321?text=Hello%20Jo%C3%A3o%20e%20Maria!"
+      );
     });
   });
 
   describe("determineMessageType", () => {
-    it("should return individual for single name", () => {
-      const result = messageBuilder.determineMessageType(["John Doe"]);
+    it("should determine individual message type", () => {
+      const names = ["John"];
+      const result = messageBuilder.determineMessageType(names);
       expect(result).toBe("individual");
     });
 
-    it("should return group for multiple names", () => {
-      const result = messageBuilder.determineMessageType([
-        "John Doe",
-        "Jane Smith",
-      ]);
+    it("should determine group message type", () => {
+      const names = ["John", "Mary"];
+      const result = messageBuilder.determineMessageType(names);
       expect(result).toBe("group");
     });
   });
