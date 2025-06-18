@@ -3,7 +3,8 @@ import Levenshtein from "levenshtein";
 export class ContactMatcher {
   constructor(contacts) {
     this.contacts = contacts;
-    this.similarityThreshold = 0.2; // 50% similarity threshold
+    // Use a 20% similarity threshold for Levenshtein matches
+    this.similarityThreshold = 0.2;
   }
 
   findMatches(name) {
