@@ -43,6 +43,22 @@ END:VCARD`;
         email: "",
       });
     });
+
+    it("should parse international numbers with known country codes", () => {
+      const vcardContent = `BEGIN:VCARD
+VERSION:3.0
+FN:Jane Doe
+TEL:3721234567
+TEL:+358401234567
+END:VCARD`;
+
+      const result = contactParser.parseVCardContent(vcardContent);
+      expect(result).toEqual({
+        name: "Jane Doe",
+        phones: ["+3721234567", "+358401234567"],
+        email: "",
+      });
+    });
   });
 
   describe("loadContactsFromDirectory", () => {
