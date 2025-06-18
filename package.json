@@ -9,7 +9,8 @@
     "start": "node src/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "levenshtein": "^1.0.5",

@@ -171,6 +171,15 @@ src/
   │       └── ContactMatcher.test.js
 ```
 
+### Formatting
+
+Format code using Prettier:
+
+```bash
+npm run format
+```
+
+
 ## Tools
 
 - [levenshtein](https://github.com/gf3/Levenshtein) - String similarity measurement
