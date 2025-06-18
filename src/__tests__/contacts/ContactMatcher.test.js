@@ -99,6 +99,13 @@ describe("ContactMatcher", () => {
       expect(confidence).toBeGreaterThan(0.7);
     });
   });
+
+  describe("isSimilarName", () => {
+    it("should match when similarity is above the threshold", () => {
+      const result = contactMatcher.isSimilarName("abcd", "abxyz");
+      expect(result).toBe(true);
+    });
+  });
 });
 
 // Custom matcher
