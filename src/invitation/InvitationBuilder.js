@@ -193,15 +193,20 @@ export class InvitationBuilder {
             // Remove all non-digit characters
             const cleaned = phone.replace(/\D/g, '');
             
-            // Format Brazilian numbers (assuming 55 is the country code)
-            if (cleaned.startsWith('55')) {
-                const countryCode = cleaned.substring(0, 2);
-                const areaCode = cleaned.substring(2, 4);
-                const firstPart = cleaned.substring(4, 9);
-                const secondPart = cleaned.substring(9);
-                return \`\${countryCode} \${areaCode} \${firstPart}-\${secondPart}\`;
+            // Handle known country codes
+            const knownCodes = ["55", "372", "358"];
+            const code = knownCodes.find(c => cleaned.startsWith(c));
+            if (code) {
+                const rest = cleaned.slice(code.length);
+                if (code === "55" && rest.length >= 10) {
+                    const areaCode = rest.substring(0, 2);
+                    const firstPart = rest.substring(2, 7);
+                    const secondPart = rest.substring(7);
+                    return \`\${code} \${areaCode} \${firstPart}-\${secondPart}\`;
+                }
+                return \`\${code} \${rest}\`;
             }
-            
+
             // Default format for other numbers
             return phone;
         }

@@ -14,13 +14,8 @@ export class ContactParser {
     const digits = phone.replace(/\D/g, "");
 
     // Check for known country codes
-    if (digits.startsWith("55")) {
-      return `+${digits}`;
-    }
-    if (digits.startsWith("372")) {
-      return `+${digits}`;
-    }
-    if (digits.startsWith("358")) {
+    const knownCodes = ["55", "372", "358"];
+    if (knownCodes.some((code) => digits.startsWith(code))) {
       return `+${digits}`;
     }
 

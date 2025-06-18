@@ -96,6 +96,10 @@ The links are automatically URL-encoded and include:
 - Phone numbers in international format
 - The formatted message with placeholders replaced
 
+### Phone Number Formats
+
+Numbers may include an international prefix. The parser currently understands Brazilian (55), Estonian (372) and Finnish (358) codes. Ten or eleven digit numbers without a code are assumed to be Brazilian and automatically prefixed with +55.
+
 ### Group Messages
 
 When a line in `names.txt` contains multiple names (separated by the characters specified in `GROUP_SEPARATORS` environment variable, defaulting to `,` and ` e `), the group message will be used. For example:
