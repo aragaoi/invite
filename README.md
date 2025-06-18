@@ -40,6 +40,13 @@ npm install
 npm start
 ```
 
+This generates an HTML file in the `dist` directory. To view it locally run:
+
+```bash
+npm run serve
+```
+Then open `http://localhost:3000` in your browser.
+
 The tool will:
 
 1. Load all vcard files from the vcards directory
