@@ -290,7 +290,7 @@ export class InvitationBuilder {
                     const phoneMatch = link.href.match(/phone=([^&]+)/);
                     if (phoneMatch && phoneMatch[1]) {
                         const phone = phoneMatch[1];
-                        link.href = \`https://api.whatsapp.com/send/?phone=\${phone}&text=\${encodeMessageForWhatsApp(newMessage)}&type=phone_number&app_absent=0\`;
+                        link.href = \`https://wa.me/\${phone}?text=\${encodeMessageForWhatsApp(newMessage)}\`;
                     }
                 }
             });
@@ -358,8 +358,8 @@ export class InvitationBuilder {
             
             const linksContainer = invitation.querySelector('.whatsapp-links');
             linksContainer.innerHTML = selectedPhones.map(phoneNumber => \`
-                <a href="https://api.whatsapp.com/send/?phone=\${encodeURIComponent(phoneNumber)}&text=\${encodeMessageForWhatsApp(formattedMessage)}&type=phone_number&app_absent=0" 
-                   onclick="markAsOpened(this)" 
+                <a href="https://wa.me/\${encodeURIComponent(phoneNumber)}?text=\${encodeMessageForWhatsApp(formattedMessage)}"
+                   onclick="markAsOpened(this)"
                    class="whatsapp-link"
                    target="_blank">Open WhatsApp (\${formatPhoneNumber(phoneNumber)})</a>
             \`).join('');

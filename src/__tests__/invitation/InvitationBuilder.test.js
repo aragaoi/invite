@@ -214,6 +214,7 @@ describe("InvitationBuilder", () => {
       expect(html).toContain("Hello {name}!");
       expect(html).toContain("Jane");
       expect(html).toContain("Bob");
+      expect(html).toContain("https://wa.me/");
     });
 
     it("should generate HTML with formatted phone numbers", () => {
